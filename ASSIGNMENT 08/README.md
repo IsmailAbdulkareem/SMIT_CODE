@@ -8,14 +8,17 @@ This folder contains my solution for the **Classification Assignment**. The obje
 ASSIGNMENT 08/
 │
 ├── 1. Framingham Heart Disease Dataset/
+│   ├── README.md
 │   ├── framingham.csv
 │   └── Framingham_Heart_Disease_Classification.ipynb
 │
 ├── 2. Heart Failure Dataset/
+│   ├── README.md
 │   ├── heart_failure_clinical_records_dataset.csv
 │   └── Heart_Failure_Classification.ipynb
 │
 └── 3. California Housing Dataset/
+    ├── README.md
     ├── housing.csv
     └── Housing_Price_Classification.ipynb
 ```
