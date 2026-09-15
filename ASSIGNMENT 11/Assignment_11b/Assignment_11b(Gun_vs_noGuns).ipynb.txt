@@ -1,0 +1,170 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": [],
+      "gpuType": "T4"
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    },
+    "accelerator": "GPU"
+  },
+  "cells": [
+    {
+      "cell_type": "code",
+      "metadata": {},
+      "source": [
+        "import kagglehub\n",
+        "\n",
+        "# Download dataset\n",
+        "data_path = kagglehub.dataset_download(\"atulyakumar98/gundetection\")\n",
+        "\n",
+        "# print(\"Path to dataset files:\", data_path)"
+      ],
+      "outputs": [],
+      "execution_count": null
+    },
+    {
+      "cell_type": "code",
+      "metadata": {},
+      "source": [
+        "import os\n",
+        "import glob\n",
+        "import numpy as np\n",
+        "from sklearn.model_selection import train_test_split\n",
+        "import tensorflow as tf\n",
+        "from tensorflow.keras import layers, models\n",
+        "\n",
+        "# Get all image paths\n",
+        "all_images = sorted(glob.glob(os.path.join(data_path, \"*.jpg\")))\n",
+        "\n",
+        "# Extract labels from txt files\n",
+        "labels_list = []\n",
+        "for img_file in all_images:\n",
+        "    txt_file = img_file.replace(\".jpg\", \".txt\")\n",
+        "    if os.path.exists(txt_file) and os.path.getsize(txt_file) > 0:\n",
+        "        labels_list.append(1)  # 1 = Gun detected\n",
+        "    else:\n",
+        "        labels_list.append(0)  # 0 = No Gun / Background\n",
+        "\n",
+        "labels_array = np.array(labels_list, dtype=np.int32)\n",
+        "print(f\"Total images: {len(all_images)} | Guns: {sum(labels_array)} | No Guns: {len(labels_array) - sum(labels_array)}\")"
+      ],
+      "outputs": [],
+      "execution_count": null
+    },
+    {
+      "cell_type": "code",
+      "metadata": {},
+      "source": [
+        "# Train/Test split (75/25)\n",
+        "X_train, X_test, y_train, y_test = train_test_split(\n",
+        "    all_images, labels_array, test_size=0.25, random_state=101, stratify=labels_array\n",
+        ")"
+      ],
+      "outputs": [],
+      "execution_count": null
+    },
+    {
+      "cell_type": "code",
+      "metadata": {},
+      "source": [
+        "IMG_H = 224\n",
+        "IMG_W = 224\n",
+        "BATCH = 64\n",
+        "\n",
+        "def load_and_preprocess(filepath, label):\n",
+        "    img = tf.io.read_file(filepath)\n",
+        "    img = tf.image.decode_jpeg(img, channels=3)\n",
+        "    img = tf.image.resize(img, [IMG_H, IMG_W])\n",
+        "    img = img / 255.0\n",
+        "    return img, label\n",
+        "\n",
+        "# Training dataset\n",
+        "train_data = tf.data.Dataset.from_tensor_slices((X_train, y_train))\n",
+        "train_data = train_data.shuffle(len(X_train)).map(load_and_preprocess).batch(BATCH).prefetch(tf.data.AUTOTUNE)\n",
+        "\n",
+        "# Validation dataset\n",
+        "test_data = tf.data.Dataset.from_tensor_slices((X_test, y_test))\n",
+        "test_data = test_data.map(load_and_preprocess).batch(BATCH).prefetch(tf.data.AUTOTUNE)"
+      ],
+      "outputs": [],
+      "execution_count": null
+    },
+    {
+      "cell_type": "code",
+      "metadata": {},
+      "source": [
+        "# Build CNN Architecture with BatchNormalization\n",
+        "gun_model = models.Sequential([\n",
+        "    layers.Input(shape=(224, 224, 3)),\n",
+        "\n",
+        "    layers.Conv2D(32, (3, 3), activation='relu'),\n",
+        "    layers.BatchNormalization(),\n",
+        "    layers.MaxPooling2D((2, 2)),\n",
+        "\n",
+        "    layers.Conv2D(64, (3, 3), activation='relu'),\n",
+        "    layers.BatchNormalization(),\n",
+        "    layers.MaxPooling2D((2, 2)),\n",
+        "\n",
+        "    layers.Conv2D(128, (3, 3), activation='relu'),\n",
+        "    layers.BatchNormalization(),\n",
+        "    layers.MaxPooling2D((2, 2)),\n",
+        "\n",
+        "    layers.Conv2D(256, (3, 3), activation='relu'),\n",
+        "    layers.BatchNormalization(),\n",
+        "    layers.MaxPooling2D((2, 2)),\n",
+        "\n",
+        "    layers.Flatten(),\n",
+        "    layers.Dense(256, activation='relu'),\n",
+        "    layers.Dropout(0.4),\n",
+        "    layers.Dense(1, activation='sigmoid')\n",
+        "])\n",
+        "\n",
+        "# Compile with RMSprop optimizer (different from adam)\n",
+        "gun_model.compile(\n",
+        "    optimizer=tf.keras.optimizers.RMSprop(learning_rate=0.0005),\n",
+        "    loss='binary_crossentropy',\n",
+        "    metrics=['accuracy']\n",
+        ")\n",
+        "\n",
+        "gun_model.summary()"
+      ],
+      "outputs": [],
+      "execution_count": null
+    },
+    {
+      "cell_type": "code",
+      "metadata": {},
+      "source": [
+        "# Early stopping callback\n",
+        "es_callback = tf.keras.callbacks.EarlyStopping(\n",
+        "    monitor='val_loss', patience=3, restore_best_weights=True\n",
+        ")\n",
+        "\n",
+        "# Train the model\n",
+        "results = gun_model.fit(\n",
+        "    train_data,\n",
+        "    validation_data=test_data,\n",
+        "    epochs=15,\n",
+        "    callbacks=[es_callback]\n",
+        ")"
+      ],
+      "outputs": [],
+      "execution_count": null
+    },
+    {
+      "cell_type": "code",
+      "metadata": {},
+      "source": [],
+      "outputs": [],
+      "execution_count": null
+    }
+  ]
+}
