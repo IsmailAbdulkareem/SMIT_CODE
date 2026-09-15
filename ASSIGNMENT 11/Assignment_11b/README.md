@@ -4,7 +4,7 @@ Binary image classification (gun / no gun) using a custom CNN built with Keras.
 
 ## Files
 
-- `Assignment_11b(Gun_vs_noGuns).ipynb.txt` - source code / solution notebook
+- `Assignment_11b(Gun_vs_noGuns).ipynb` - source code / solution notebook
 
 ## About the Dataset
 
